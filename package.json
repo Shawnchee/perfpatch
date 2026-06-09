@@ -4,6 +4,15 @@
   "description": "Agentic frontend health CLI — audit Lighthouse, bundle bloat, and dead code, then let Claude generate and apply the fixes.",
   "type": "module",
   "license": "MIT",
+  "author": "Shawnchee",
+  "homepage": "https://github.com/Shawnchee/perfpatch#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Shawnchee/perfpatch.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Shawnchee/perfpatch/issues"
+  },
   "engines": {
     "node": ">=22"
   },
