@@ -23,28 +23,68 @@
 
 ## Install / run
 
-No global install needed:
-
-```bash
-npx perfpatch https://yoursite.com
-```
+> ⚠️ **Not published to npm yet.** `npx perfpatch` won't work until it's
+> released. For now, run it from source (below). The `npx`/`npm install`
+> commands elsewhere in this README describe the eventual published flow.
 
 Requires **Node 22+** and **Chrome/Chromium** (for URL audits only). **No API key required.**
+
+Run from source:
+
+```bash
+git clone https://github.com/Shawnchee/perfpatch.git
+cd perfpatch
+npm install
+npm run build
+
+# Then run the built CLI:
+node dist/cli.js https://yoursite.com
+node dist/cli.js --local /path/to/your-project
+
+# …or run straight from TypeScript without building:
+npm run dev -- --local /path/to/your-project
+```
+
+(Optional) link it so `perfpatch` works as a global command on your machine:
+
+```bash
+npm link            # in the perfpatch repo
+perfpatch --local /path/to/your-project
+```
 
 ---
 
 ## Usage
 
+> Examples use `perfpatch …`; until it's on npm, substitute `node dist/cli.js …`
+> (or `npm run dev -- …`) from the cloned repo.
+
 ```bash
 # Audit a deployed URL
-npx perfpatch https://yoursite.com
+perfpatch https://yoursite.com
 
 # Audit a local codebase (bundle + dead code)
-npx perfpatch --local ./
+perfpatch --local ./
 
 # Both — correlate runtime + codebase findings
-npx perfpatch https://yoursite.com --local ./
+perfpatch https://yoursite.com --local ./
+
+# Audit your running dev server (include the scheme!)
+perfpatch http://localhost:3000 --local ./
 ```
+
+### Auditing a local dev server
+
+You can point `perfpatch` at `http://localhost:3000` (or any port) while your
+dev server is running:
+
+- **Include the scheme** — `http://localhost:3000`, not bare `localhost:3000`.
+- **Pair it with `--local ./`** so you also get bundle/dead-code analysis and
+  real stack detection (a URL-only audit can only see the rendered page).
+- **For trustworthy perf scores, audit a production build**, not the dev server
+  — `next dev` / `vite` are unminified and carry HMR overhead, so scores look
+  worse than reality. Run e.g. `next build && next start` (or `vite preview`)
+  and audit that port. Bundle/dead-code analysis is accurate either way.
 
 ### Flags
 
@@ -115,7 +155,23 @@ deterministic fixes plus a brief describing what to change; the agent edits file
 and applies its diffs through `apply_patch` (which backs up, validates the path,
 and never partial-applies).
 
-Add to your MCP client config (Claude Desktop / Cursor / Claude Code) — no key:
+Add to your MCP client config (Claude Desktop / Cursor / Claude Code) — no key.
+
+**From source (current — not on npm yet):** build first (`npm install && npm run
+build`), then point the client at the built server with an absolute path:
+
+```json
+{
+  "mcpServers": {
+    "perfpatch": {
+      "command": "node",
+      "args": ["/absolute/path/to/perfpatch/dist/mcp.js"]
+    }
+  }
+}
+```
+
+**Once published to npm**, this becomes:
 
 ```json
 {
@@ -127,9 +183,6 @@ Add to your MCP client config (Claude Desktop / Cursor / Claude Code) — no key
   }
 }
 ```
-
-> The published binary `perfpatch-mcp` runs the server directly; during local
-> development use `npm run mcp`.
 
 Then, in your editor: _"audit my site and fix the LCP issue"_ — the agent calls
 the tools, makes the edits itself, and applies patches with your confirmation.
