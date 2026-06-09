@@ -1,0 +1,58 @@
+{
+  "name": "perfpatch",
+  "version": "0.1.0",
+  "description": "Agentic frontend health CLI — audit Lighthouse, bundle bloat, and dead code, then let Claude generate and apply the fixes.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "perfpatch": "./dist/cli.js",
+    "perfpatch-mcp": "./dist/mcp.js"
+  },
+  "files": [
+    "dist/",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/copy-prompts.mjs",
+    "dev": "tsx src/cli.ts",
+    "mcp": "tsx src/mcp.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "lighthouse",
+    "performance",
+    "bundle",
+    "dead-code",
+    "knip",
+    "mcp",
+    "claude",
+    "cli",
+    "nextjs",
+    "frontend"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.10.0",
+    "chalk": "^5.4.1",
+    "chrome-launcher": "^1.1.2",
+    "commander": "^12.1.0",
+    "diff": "^7.0.0",
+    "execa": "^9.5.2",
+    "knip": "^5.46.0",
+    "lighthouse": "^12.4.0",
+    "ora": "^8.2.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/diff": "^7.0.0",
+    "@types/node": "^22.13.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}
