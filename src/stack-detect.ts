@@ -156,3 +156,22 @@ function frameworkPackage(framework: Framework): string {
 export function hasPackageJson(projectPath: string): boolean {
   return existsSync(join(projectPath, 'package.json'));
 }
+
+/**
+ * A stack with everything unknown, used for URL-only audits where there's no
+ * codebase to inspect. Honors an explicit framework override but never reads
+ * the filesystem — so running `perfpatch <url>` from an arbitrary directory
+ * doesn't pick up that directory's tooling.
+ */
+export function unknownStack(framework: Framework = 'generic'): StackInfo {
+  return {
+    framework,
+    frameworkVersion: null,
+    bundler: 'unknown',
+    cssApproach: 'unknown',
+    imageLib: 'unknown',
+    typescript: false,
+    nodeVersion: process.versions.node,
+    packageManager: 'npm',
+  };
+}

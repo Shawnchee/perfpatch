@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { detectStack, hasPackageJson } from '../src/stack-detect.js';
+import { detectStack, hasPackageJson, unknownStack } from '../src/stack-detect.js';
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
 
@@ -38,6 +38,20 @@ describe('detectStack', () => {
     const stack = detectStack('/nonexistent/path', 'generic');
     expect(stack.framework).toBe('generic');
     expect(stack.nodeVersion).toBeTruthy();
+  });
+});
+
+describe('unknownStack', () => {
+  it('returns an all-unknown stack without reading the filesystem', () => {
+    const stack = unknownStack();
+    expect(stack.framework).toBe('generic');
+    expect(stack.typescript).toBe(false);
+    expect(stack.bundler).toBe('unknown');
+    expect(stack.cssApproach).toBe('unknown');
+  });
+
+  it('honors an explicit framework override', () => {
+    expect(unknownStack('nextjs').framework).toBe('nextjs');
   });
 });
 

@@ -16,7 +16,7 @@ import { applyFix } from './patcher/apply.js';
 import { colorizeDiff } from './patcher/diff.js';
 import { runCommand } from './patcher/run-command.js';
 import { render } from './reporter.js';
-import { detectStack, hasPackageJson } from './stack-detect.js';
+import { detectStack, hasPackageJson, unknownStack } from './stack-detect.js';
 import type {
   AuditResults,
   Category,
@@ -244,10 +244,12 @@ async function main(): Promise<void> {
 
   const isTerminal = opts.output === 'terminal';
 
-  // Stack detection (must run before fixes; PRD §15.5).
+  // Stack detection (must run before fixes; PRD §15.5). For URL-only audits
+  // there's no codebase to inspect, so use an unknown stack rather than
+  // scanning whatever directory the user happens to be in.
   const stack: StackInfo = opts.local
     ? detectStack(resolve(opts.local), opts.stack)
-    : detectStack(process.cwd(), opts.stack ?? 'generic');
+    : unknownStack(opts.stack);
 
   const audits = await runAudits(opts);
 
