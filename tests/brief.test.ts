@@ -46,7 +46,7 @@ describe('buildFixBrief', () => {
     expect(brief).toContain('Claude Code'); // handoff guidance
   });
 
-  it('lists rule fixes as already handled', () => {
+  it('lists rule fixes as suggested commands to review', () => {
     const brief = buildFixBrief({
       audits,
       stack,
@@ -66,7 +66,8 @@ describe('buildFixBrief', () => {
         },
       ],
     });
-    expect(brief).toContain('Already handled by perfpatch');
+    expect(brief).toContain('Suggested commands');
+    expect(brief).toContain('perfpatch does NOT run these');
     expect(brief).toContain('npm uninstall a b');
   });
 });

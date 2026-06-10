@@ -14,7 +14,6 @@ import { rankFixes } from './ai/models.js';
 import { DEFAULT_BRIEF_FILE, VERSION } from './config.js';
 import { applyFix } from './patcher/apply.js';
 import { colorizeDiff } from './patcher/diff.js';
-import { runCommand } from './patcher/run-command.js';
 import { render } from './reporter.js';
 import { detectStack, hasPackageJson, unknownStack } from './stack-detect.js';
 import type {
@@ -173,38 +172,32 @@ function checkBudget(opts: CliOptions, audits: AuditResults): void {
   console.log(chalk.green(`✓ Budget passed: ${metric} ${actual} >= ${threshold}`));
 }
 
-/** Apply deterministic fixes (patches + commands) with confirmation. */
+/**
+ * Apply file-patch fixes (with backups + confirmation). Command fixes
+ * (e.g. `npm uninstall`) are advisory — perfpatch never runs them, because the
+ * dead-code detection behind them can have false positives. They're printed as
+ * copy-paste suggestions for the developer (or their AI agent) to review.
+ */
 async function applyFixes(fixes: Fix[], localPath: string, autoApply: boolean): Promise<void> {
-  const actionable = fixes.filter((f) => (f.patch && f.file_path) || f.command);
-  if (actionable.length === 0) return;
+  const patchFixes = fixes.filter((f) => f.patch && f.file_path);
+  if (patchFixes.length === 0) return;
 
-  console.log(chalk.bold(`\nApplying ${actionable.length} deterministic fix(es)…\n`));
-  for (const fix of actionable) {
+  console.log(chalk.bold(`\nApplying ${patchFixes.length} file patch(es)…\n`));
+  for (const fix of patchFixes) {
     console.log(chalk.bold(`▸ ${fix.title}`));
-    if (fix.patch && fix.file_path) {
-      console.log(chalk.dim(`  ${fix.file_path}`));
-      console.log(colorizeDiff(fix.patch, chalk));
-      const proceed = autoApply || (await confirm(`Apply patch to ${fix.file_path}?`));
-      if (!proceed) {
-        console.log(chalk.dim('  skipped\n'));
-        continue;
-      }
-      const result = applyFix(fix, localPath);
-      if (result.applied) {
-        console.log(chalk.green(`  ✓ applied → ${result.filesChanged.join(', ')}`));
-        console.log(chalk.dim(`  backup: ${result.backupPath}\n`));
-      } else {
-        console.log(chalk.yellow(`  ⚠ could not apply cleanly — manual fix required (${result.reason})\n`));
-      }
-    } else if (fix.command) {
-      console.log(chalk.cyan(`  $ ${fix.command}`));
-      const proceed = autoApply || (await confirm('Run this command?'));
-      if (!proceed) {
-        console.log(chalk.dim('  skipped\n'));
-        continue;
-      }
-      const res = await runCommand(fix.command, localPath);
-      console.log(res.ok ? chalk.green('  ✓ done\n') : chalk.yellow(`  ⚠ failed: ${res.output}\n`));
+    console.log(chalk.dim(`  ${fix.file_path}`));
+    console.log(colorizeDiff(fix.patch!, chalk));
+    const proceed = autoApply || (await confirm(`Apply patch to ${fix.file_path}?`));
+    if (!proceed) {
+      console.log(chalk.dim('  skipped\n'));
+      continue;
+    }
+    const result = applyFix(fix, localPath);
+    if (result.applied) {
+      console.log(chalk.green(`  ✓ applied → ${result.filesChanged.join(', ')}`));
+      console.log(chalk.dim(`  backup: ${result.backupPath}\n`));
+    } else {
+      console.log(chalk.yellow(`  ⚠ could not apply cleanly — manual fix required (${result.reason})\n`));
     }
   }
 }

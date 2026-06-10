@@ -151,7 +151,10 @@ export function buildFixBrief(input: BriefInput): string {
   md.push(renderFindings(audits));
 
   if (input.ruleFixes && input.ruleFixes.length > 0) {
-    md.push('## Already handled by perfpatch (deterministic — skip these)');
+    md.push('## Suggested commands (review before running — perfpatch does NOT run these)');
+    md.push(
+      'Mechanical fixes derived from the audit. Dead-code detection can produce false positives, so verify each is safe for this project before running or applying it.',
+    );
     for (const f of input.ruleFixes) {
       md.push(`- ${f.title}${f.command ? ` → \`${f.command}\`` : ''}`);
     }

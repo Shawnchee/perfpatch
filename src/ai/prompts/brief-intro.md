@@ -16,6 +16,7 @@ How to work:
 5. Don't invent problems. If a finding isn't actionable from the code you can
    see, say so and move on.
 
-The deterministic fixes (unused-dependency removals, etc.) may already be listed
-separately by the tool — focus your effort on the contextual code changes that
-need judgment.
+The mechanical fixes (unused-dependency removals, etc.) are listed separately as
+**suggested commands** — perfpatch does not run them, since dead-code detection
+can have false positives. Review them and fold any that are clearly safe into
+your plan, but focus your effort on the contextual code changes that need judgment.

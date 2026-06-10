@@ -102,7 +102,12 @@ export function renderTerminal(input: ReportInput): string {
 
   out.push('');
   out.push(RULE);
-  out.push(chalk.dim('Run with --apply to patch all automatically, or --dry-run to preview.'));
+  out.push(
+    chalk.dim(
+      'Suggested commands are advisory — review, then run them yourself. ' +
+        'perfpatch does not remove dependencies for you.',
+    ),
+  );
 
   if (input.verbose) out.push(renderRawAudits(audits));
 
@@ -119,7 +124,7 @@ function renderGroup(out: string[], heading: string, fixes: Fix[], startIndex: n
     const tag = `[${i}]`;
     out.push(`${chalk.bold(tag)} ${fix.title.padEnd(48)} ${chalk.dim(fix.estimated_saving)}`);
     if (fix.file_path) out.push(`    ${chalk.dim('File:')} ${fix.file_path}`);
-    if (fix.command) out.push(`    ${chalk.dim('Command:')} ${fix.command}`);
+    if (fix.command) out.push(`    ${chalk.dim('Suggested command (review, then run yourself):')} ${fix.command}`);
     out.push(`    ${chalk.dim(`Effort: ${fix.effort.toUpperCase()} — ${fix.explanation}`)}`);
     out.push('');
     i++;

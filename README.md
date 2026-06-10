@@ -6,12 +6,12 @@
 
 > Run one command. Get your Lighthouse score, bundle waste, and dead code diagnosed **and fixed** — using the LLM you already have. No API key, no extra cost.
 
-`perfpatch` is a CLI tool and MCP server that audits a frontend project across three dimensions — runtime performance (Lighthouse), bundle bloat, and dead code — then **does the deterministic fixes itself** and hands the contextual code fixes to whatever LLM you already use (Claude Code, Cursor, …). It makes **zero external API calls**.
+`perfpatch` is a CLI tool and MCP server that audits a frontend project across three dimensions — runtime performance (Lighthouse), bundle bloat, and dead code — then **surfaces the mechanical fixes as exact commands to review** and hands the contextual code fixes to whatever LLM you already use (Claude Code, Cursor, …). It makes **zero external API calls**.
 
 - 🔦 **Lighthouse** runtime audit (local headless Chrome — no Google API)
 - 📦 **Bundle scan** — heavy deps, duplicates, high-value substitutions
 - 🧹 **Dead code** via [Knip](https://knip.dev)'s programmatic API
-- 🔧 **Deterministic fixes** applied directly (e.g. remove unused deps) — no LLM needed
+- 🔧 **Mechanical fixes** as ready-to-run commands you review (e.g. remove unused deps) — no LLM needed
 - 🧠 **A fix brief** for the contextual code changes — paste into your IDE agent, or
 - 🔌 **MCP server** so your IDE's Claude drives the audits + applies patches for free
 
@@ -19,7 +19,7 @@
 
 `perfpatch` never calls an LLM API. Instead:
 
-1. **Deterministic fixes** (unused-dependency removals, etc.) are generated and applied by the tool itself.
+1. **Mechanical fixes** (unused-dependency removals, etc.) are surfaced as exact commands you review and run — perfpatch does **not** execute them for you, since dead-code detection can have false positives.
 2. **Contextual fixes** (LCP image tweaks, dependency swaps with import rewrites, config tuning) are written to a **fix brief** (`perfpatch-fixes.md`) — a ready-to-act prompt you drop into Claude Code / Cursor. Your existing LLM makes the edits.
 3. Even better: add the **MCP server** to your IDE. Then your agent calls the audit tools, reads the findings, edits files, and applies patches through `apply_patch` — all on your existing Claude, no separate key.
 
