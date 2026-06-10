@@ -1,7 +1,7 @@
 {
   "name": "perfpatch",
-  "version": "0.1.0",
-  "description": "Agentic frontend health CLI — audit Lighthouse, bundle bloat, and dead code, then let Claude generate and apply the fixes.",
+  "version": "0.1.1",
+  "description": "Agentic frontend-health CLI & MCP server — audit Lighthouse, bundle bloat & dead code, then apply the fixes with the LLM you already have. No API key.",
   "type": "module",
   "license": "MIT",
   "author": "Shawnchee",
@@ -22,7 +22,8 @@
   },
   "files": [
     "dist/",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json && node scripts/copy-prompts.mjs",
