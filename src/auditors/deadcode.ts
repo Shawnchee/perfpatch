@@ -1,6 +1,6 @@
 import * as knip from 'knip';
 import * as knipSession from 'knip/session';
-import { relative } from 'node:path';
+import { relative, resolve } from 'node:path';
 import type { DeadCodeResult, UnusedExport } from '../types.js';
 
 /** Knip's IssueRecords shape: { [filePath]: { [symbol]: Issue } }. */
@@ -56,7 +56,9 @@ function flattenExports(records: IssueRecords | undefined, cwd: string): UnusedE
   if (!records) return [];
   const out: UnusedExport[] = [];
   for (const [filePath, byName] of Object.entries(records)) {
-    const file = relative(cwd, filePath);
+    // Knip keys exports/types by paths relative to its own cwd; resolve against
+    // the project root first so relative() doesn't anchor to process.cwd().
+    const file = relative(cwd, resolve(cwd, filePath));
     if (isIgnorableFile(file)) continue;
     for (const name of Object.keys(byName)) out.push({ file, name });
   }
@@ -81,7 +83,7 @@ export async function runDeadCodeScan(projectPath: string): Promise<DeadCodeResu
 
   // Files: a plain Set of absolute paths.
   const rawFiles = [...(issues.files ?? [])]
-    .map((f) => relative(cwd, f))
+    .map((f) => relative(cwd, resolve(cwd, f)))
     .filter((f) => !isIgnorableFile(f));
 
   const truncatedFiles = rawFiles.length > MAX_FILES_BEFORE_SUMMARY;

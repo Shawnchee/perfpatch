@@ -29,7 +29,16 @@ export function generateRuleFixes(audits: AuditResults, stack: StackInfo): Fix[]
   const pm = stack.packageManager;
 
   const dc = audits.deadcode;
-  if (dc && !dc.truncatedFiles) {
+  if (dc) {
+    // Dead-FILE detection is unreliable when entry points look misconfigured
+    // (truncatedFiles), but unused-DEPENDENCY detection is independent of that —
+    // a dep is unused if nothing imports it. Still surface the caveat so anyone
+    // running --apply verifies first.
+    const lowConfidence = dc.truncatedFiles;
+    const caution = lowConfidence
+      ? ' Knip flagged an unusually large number of unused files, which can mean a misconfigured entry point — double-check these are truly unused before removing.'
+      : '';
+
     if (dc.unusedDependencies.length > 0) {
       fixes.push({
         id: 'remove-unused-deps',
@@ -40,7 +49,7 @@ export function generateRuleFixes(audits: AuditResults, stack: StackInfo): Fix[]
         file_path: null,
         patch: null,
         command: uninstallCmd(pm, dc.unusedDependencies),
-        explanation: `These packages are installed but never imported: ${dc.unusedDependencies.join(', ')}.`,
+        explanation: `These packages are installed but never imported: ${dc.unusedDependencies.join(', ')}.${caution}`,
         metric_affected: 'bundle size',
         estimated_saving: 'removes unused install weight',
       });
@@ -55,7 +64,7 @@ export function generateRuleFixes(audits: AuditResults, stack: StackInfo): Fix[]
         file_path: null,
         patch: null,
         command: uninstallCmd(pm, dc.unusedDevDependencies, true),
-        explanation: `These devDependencies are never used: ${dc.unusedDevDependencies.join(', ')}.`,
+        explanation: `These devDependencies are never used: ${dc.unusedDevDependencies.join(', ')}.${caution}`,
         metric_affected: 'install size',
         estimated_saving: 'faster installs / smaller lockfile',
       });

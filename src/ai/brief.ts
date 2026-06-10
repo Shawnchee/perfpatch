@@ -58,14 +58,24 @@ function renderFindings(audits: AuditResults): string {
 
   if (audits.bundle) {
     const b = audits.bundle;
+    const measured = b.source === 'next-manifest' || b.source === 'dist-scan';
     parts.push('## Bundle');
-    parts.push(`- Estimated JS: ${Math.round(b.totalEstimatedSize / 1024)}KB (source: ${b.source})`);
+    if (measured) {
+      parts.push(`- Built JS: ${Math.round(b.totalEstimatedSize / 1024)}KB (measured from ${b.source})`);
+    } else {
+      parts.push(
+        `- Worst-case dependency size: ~${Math.round(b.totalEstimatedSize / 1024)}KB (estimated — no build output found).`,
+        '  This is an upper bound from full-package sizes, NOT the shipped bundle. Run a production build for real numbers.',
+      );
+    }
     if (b.heavyDeps.length) {
-      parts.push('- Heavy dependencies:');
+      parts.push('- Heavy dependencies (worst-case full-import size — tree-shakeable libs ship less):');
       for (const d of b.heavyDeps) parts.push(`  - ${d.name} (~${Math.round(d.estimatedSize / 1024)}KB)`);
     }
     if (b.duplicateDeps.length) {
-      parts.push('- Duplicate versions:');
+      parts.push(
+        '- Duplicate installed versions (from node_modules — many are build/CLI tooling that never reaches the client bundle; verify before acting):',
+      );
       for (const d of b.duplicateDeps) parts.push(`  - ${d.name}: ${d.versions.join(', ')}`);
     }
     if (b.recommendations.length) {
@@ -78,9 +88,14 @@ function renderFindings(audits: AuditResults): string {
   if (audits.deadcode) {
     const d = audits.deadcode;
     parts.push('## Dead code');
+    if (d.unlisted.length) {
+      parts.push(
+        `- ⚠ Unlisted dependencies (imported but missing from package.json — can crash a clean install): ${d.unlisted.join(', ')}`,
+      );
+    }
     if (d.unusedDependencies.length) parts.push(`- Unused dependencies: ${d.unusedDependencies.join(', ')}`);
     if (d.unusedExports.length) {
-      parts.push('- Unused exports:');
+      parts.push('- Unused exports (may still be used by tests, dynamic imports, or a dispatcher — verify each before deleting):');
       for (const e of d.unusedExports.slice(0, 25)) parts.push(`  - ${e.file} → ${e.name}`);
     }
     if (d.unusedFiles.length) {

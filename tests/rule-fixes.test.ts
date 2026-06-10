@@ -61,11 +61,16 @@ describe('generateRuleFixes', () => {
     expect(generateRuleFixes(deadcode(), stack('npm'))).toHaveLength(0);
   });
 
-  it('skips when dead-code findings were truncated (low confidence)', () => {
+  it('still removes unused deps when files were truncated, but adds a caution', () => {
+    // Truncated FILE detection (misconfigured entry point) does not make unused
+    // DEP detection unreliable — a dep is unused if nothing imports it.
     const fixes = generateRuleFixes(
       deadcode({ unusedDependencies: ['x'], truncatedFiles: true, confidence: 'low' }),
       stack('npm'),
     );
-    expect(fixes).toHaveLength(0);
+    const fix = fixes.find((f) => f.id === 'remove-unused-deps');
+    expect(fix).toBeDefined();
+    expect(fix!.command).toBe('npm uninstall x');
+    expect(fix!.explanation).toContain('double-check');
   });
 });

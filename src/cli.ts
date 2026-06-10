@@ -28,6 +28,12 @@ import type {
   StackInfo,
 } from './types.js';
 
+/** Remove ANSI color/escape codes so saved reports are plain text. */
+function stripAnsi(s: string): string {
+  // eslint-disable-next-line no-control-regex
+  return s.replace(/\x1b\[[0-9;]*m/g, '');
+}
+
 function fail(message: string, hint?: string): never {
   console.error(chalk.red(`\n✖ ${message}`));
   if (hint) console.error(chalk.dim(hint));
@@ -99,6 +105,16 @@ async function runAudits(opts: CliOptions): Promise<AuditResults> {
     if (!hasPackageJson(localPath)) {
       fail('No package.json found.', 'Is this the root of a JS/TS project?');
     }
+    // A corrupt package.json otherwise yields a clean-looking empty audit
+    // (0KB bundle, no deps) — surface the real problem instead.
+    try {
+      JSON.parse(readFileSync(join(localPath, 'package.json'), 'utf8'));
+    } catch (err) {
+      fail(
+        `package.json is not valid JSON: ${(err as Error).message}`,
+        'Fix the syntax error before auditing — bundle and dead-code results depend on it.',
+      );
+    }
 
     if (shouldRun(opts.category, 'bundle')) {
       const spinner = ora('Scanning bundle…').start();
@@ -128,7 +144,16 @@ async function runAudits(opts: CliOptions): Promise<AuditResults> {
 }
 
 function checkBudget(opts: CliOptions, audits: AuditResults): void {
-  if (!opts.budget || !audits.lighthouse) return;
+  if (!opts.budget) return;
+  // Every budget metric comes from Lighthouse. If it didn't run (no URL, Chrome
+  // missing, timeout), a budget gate must NOT silently pass — that would turn a
+  // failed audit green in CI. Fail loudly instead.
+  if (!audits.lighthouse) {
+    fail(
+      `Budget "${opts.budget.metric}=${opts.budget.threshold}" could not be evaluated — Lighthouse did not run.`,
+      'Provide a URL and ensure Chrome is installed so the budget can be checked.',
+    );
+  }
   const { metric, threshold } = opts.budget;
   const scores = audits.lighthouse.scores;
   const map: Record<string, number | undefined> = {
@@ -272,7 +297,9 @@ async function main(): Promise<void> {
   console.log(report);
 
   if (opts.save) {
-    writeFileSync(opts.save, report, 'utf8');
+    // Terminal output carries ANSI color codes; a saved file should be plain text.
+    const saved = isTerminal ? stripAnsi(report) : report;
+    writeFileSync(opts.save, saved, 'utf8');
     if (isTerminal) console.log(chalk.dim(`\nSaved report to ${opts.save}`));
   }
 

@@ -58,8 +58,12 @@ export function renderTerminal(input: ReportInput): string {
   }
   if (audits.bundle) {
     const b = audits.bundle;
+    const measured = b.source === 'next-manifest' || b.source === 'dist-scan';
+    const sizeLabel = measured
+      ? `${kb(b.totalEstimatedSize)} JS (built)`
+      : `~${kb(b.totalEstimatedSize)} worst-case dep size (no build output)`;
     out.push(
-      `  ${chalk.green('✓')} Bundle       ${kb(b.totalEstimatedSize)} JS, ` +
+      `  ${chalk.green('✓')} Bundle       ${sizeLabel}, ` +
         `${b.heavyDeps.length} heavy dep(s), ${b.duplicateDeps.length} duplicate(s)`,
     );
   }
@@ -153,13 +157,18 @@ function renderRawAudits(audits: AuditResults): string {
 // ─────────────────────────────────────────────────────────────────────────
 
 export function renderJson(input: ReportInput): string {
+  // Drop the raw Lighthouse report (LHR) — it's 200KB–1MB+ of mostly-unreadable
+  // JSON that would swamp the output and any downstream `jq`. Keep the shaped fields.
+  const audits = input.audits.lighthouse
+    ? { ...input.audits, lighthouse: { ...input.audits.lighthouse, rawJson: undefined } }
+    : input.audits;
   return JSON.stringify(
     {
       version: VERSION,
       url: input.url ?? null,
       localPath: input.localPath ?? null,
       stack: input.stack,
-      audits: input.audits,
+      audits,
       fixes: input.fixes,
     },
     null,

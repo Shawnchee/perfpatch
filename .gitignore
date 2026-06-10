@@ -3,6 +3,7 @@ dist/
 *.log
 .DS_Store
 *.perfpatch-backup
+perfpatch-fixes.md
 .env
 .env.local
 coverage/
