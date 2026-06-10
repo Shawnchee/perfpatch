@@ -1,4 +1,8 @@
-# perfpatch
+<p align="center">
+  <img src="assets/logo.png" alt="perfpatch" width="180">
+</p>
+
+<h1 align="center">perfpatch</h1>
 
 > Run one command. Get your Lighthouse score, bundle waste, and dead code diagnosed **and fixed** — using the LLM you already have. No API key, no extra cost.
 
