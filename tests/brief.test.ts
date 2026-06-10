@@ -70,4 +70,31 @@ describe('buildFixBrief', () => {
     expect(brief).toContain('perfpatch does NOT run these');
     expect(brief).toContain('npm uninstall a b');
   });
+
+  it('relabels exports as non-deletable and segregates dynamically-loaded files', () => {
+    const brief = buildFixBrief({
+      audits: {
+        deadcode: {
+          unusedFiles: ['src/orphan.ts'],
+          possiblyUnusedFiles: ['public/sw.js', 'content/intro.mdx'],
+          unusedDependencies: [],
+          unusedDevDependencies: [],
+          unusedExports: [{ file: 'lib/sub.ts', name: 'isActiveSubscription' }],
+          unlisted: [],
+          truncatedFiles: false,
+          confidence: 'high',
+        },
+      },
+      stack,
+    });
+    // exports: must NOT imply deletion
+    expect(brief).toContain('drop the `export` keyword');
+    expect(brief).not.toContain('Unused exports (may still');
+    // dynamically-loaded files: investigate, not delete
+    expect(brief).toContain('INVESTIGATE, do NOT delete');
+    expect(brief).toContain('public/sw.js');
+    expect(brief).toContain('content/intro.mdx');
+    // genuinely orphaned still listed separately
+    expect(brief).toContain('src/orphan.ts');
+  });
 });

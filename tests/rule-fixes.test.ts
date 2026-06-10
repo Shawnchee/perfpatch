@@ -19,6 +19,7 @@ function deadcode(over: Partial<AuditResults['deadcode']> = {}): AuditResults {
   return {
     deadcode: {
       unusedFiles: [],
+      possiblyUnusedFiles: [],
       unusedDependencies: [],
       unusedDevDependencies: [],
       unusedExports: [],

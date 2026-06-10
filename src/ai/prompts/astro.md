@@ -1,5 +1,11 @@
 ## Astro-specific fix knowledge
 
+> **Reference, not a checklist.** The items below are background knowledge about
+> how to fix common Astro issues. They are NOT a list of problems in this
+> project. Only act on a point here if it directly addresses one of the failing
+> audits in the findings above, and only after confirming the project doesn't
+> already do it.
+
 - **Images**: use `astro:assets` `<Image />` for automatic optimization,
   responsive `srcset`, and modern formats. Add `loading="eager"` +
   `fetchpriority="high"` to the LCP image only.

@@ -79,6 +79,15 @@ export interface LighthouseMetrics {
   tti: number; // ms
 }
 
+export interface ContrastIssue {
+  /** CSS selector or best-available locator for the failing node. */
+  selector: string;
+  /** Trimmed HTML snippet of the node, if Lighthouse provided one. */
+  snippet?: string;
+  /** Human-readable text node label, if Lighthouse provided one. */
+  nodeLabel?: string;
+}
+
 export interface LighthouseAuditResult {
   url: string;
   device: 'desktop' | 'mobile';
@@ -90,6 +99,16 @@ export interface LighthouseAuditResult {
   };
   metrics: LighthouseMetrics;
   failingAudits: FailingAudit[];
+  /**
+   * Actual element responsible for LCP (selector / snippet / nodeLabel),
+   * extracted from audits['largest-contentful-paint-element']. Undefined when
+   * the audit passed or Lighthouse did not report an element.
+   */
+  lcpElement?: string;
+  /** Up to ~5 nodes failing the color-contrast audit. */
+  contrastIssues?: ContrastIssue[];
+  /** Ordered URLs in the redirect chain (length > 1 means redirects exist). */
+  redirectChain?: string[];
   rawJson: unknown;
 }
 
@@ -127,9 +146,25 @@ export interface UnusedExport {
 }
 
 export interface DeadCodeResult {
+  /**
+   * Files with no static importer AND not matching a known dynamic-load pattern.
+   * Closer to genuinely orphaned, but still verify before deleting.
+   */
   unusedFiles: string[];
+  /**
+   * Files Knip flagged as unused but that match a dynamic-load pattern (public/
+   * assets, *.md/*.mdx content, service workers, templates). These are commonly
+   * loaded via filesystem globs, string paths, or route conventions that static
+   * analysis cannot see — surface for investigation, NEVER as "delete these".
+   */
+  possiblyUnusedFiles: string[];
   unusedDependencies: string[];
   unusedDevDependencies: string[];
+  /**
+   * Exports not imported by any OTHER module. This does NOT mean dead code:
+   * the symbol may be used in its own file, via dynamic import, or by tests.
+   * The actionable read is "you may be able to drop the `export` keyword".
+   */
   unusedExports: UnusedExport[];
   unlisted: string[];
   /** Set when unusedFiles was truncated for display (likely misconfig). */

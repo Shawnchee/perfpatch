@@ -6,6 +6,19 @@ import type { AuditResults, FileContext, Fix, Framework, StackInfo } from '../ty
 
 const PROMPTS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'prompts');
 
+/**
+ * Deps that are framework-essential: they have no lighter substitution and can't
+ * be removed, so listing them as "heavy" bloat is noise, not an actionable
+ * finding. Keep this list narrow — only truly non-removable runtime cores.
+ */
+const NON_REMOVABLE_DEPS = new Set([
+  'react',
+  'react-dom',
+  'next',
+  'react/jsx-runtime',
+  'scheduler',
+]);
+
 function loadPrompt(name: string): string {
   try {
     return readFileSync(join(PROMPTS_DIR, name), 'utf8');
@@ -53,6 +66,29 @@ function renderFindings(audits: AuditResults): string {
     for (const a of topIssues(lh.failingAudits, 8)) {
       parts.push(`- **${a.title}** (${a.id}) — score ${(a.score * 100).toFixed(0)}${a.displayValue ? `, ${a.displayValue}` : ''}`);
     }
+
+    if (lh.lcpElement) {
+      parts.push(
+        '',
+        'LCP element (the element that finished painting last — optimize THIS one):',
+        `  \`${lh.lcpElement}\``,
+      );
+    }
+
+    if (lh.contrastIssues && lh.contrastIssues.length > 0) {
+      parts.push('', 'Failing color-contrast nodes (fix the foreground/background of these specific elements):');
+      for (const c of lh.contrastIssues) {
+        const label = c.nodeLabel ? ` — "${c.nodeLabel}"` : '';
+        parts.push(`  - \`${c.selector}\`${label}`);
+        if (c.snippet && c.snippet !== c.selector) parts.push(`    ${c.snippet}`);
+      }
+    }
+
+    if (lh.redirectChain && lh.redirectChain.length > 1) {
+      parts.push('', `Redirect chain (${lh.redirectChain.length} hops — point links/canonical at the final URL to drop the round-trips):`);
+      parts.push(`  ${lh.redirectChain.join(' → ')}`);
+    }
+
     parts.push('');
   }
 
@@ -68,9 +104,10 @@ function renderFindings(audits: AuditResults): string {
         '  This is an upper bound from full-package sizes, NOT the shipped bundle. Run a production build for real numbers.',
       );
     }
-    if (b.heavyDeps.length) {
+    const actionableHeavyDeps = b.heavyDeps.filter((d) => !NON_REMOVABLE_DEPS.has(d.name));
+    if (actionableHeavyDeps.length) {
       parts.push('- Heavy dependencies (worst-case full-import size — tree-shakeable libs ship less):');
-      for (const d of b.heavyDeps) parts.push(`  - ${d.name} (~${Math.round(d.estimatedSize / 1024)}KB)`);
+      for (const d of actionableHeavyDeps) parts.push(`  - ${d.name} (~${Math.round(d.estimatedSize / 1024)}KB)`);
     }
     if (b.duplicateDeps.length) {
       parts.push(
@@ -95,12 +132,22 @@ function renderFindings(audits: AuditResults): string {
     }
     if (d.unusedDependencies.length) parts.push(`- Unused dependencies: ${d.unusedDependencies.join(', ')}`);
     if (d.unusedExports.length) {
-      parts.push('- Unused exports (may still be used by tests, dynamic imports, or a dispatcher — verify each before deleting):');
+      parts.push(
+        '- Exports not imported by any other module (you may be able to drop the `export` keyword — NOT necessarily dead: each may be used inside its own file, via a dynamic import, or by tests; do NOT delete the symbol without checking):',
+      );
       for (const e of d.unusedExports.slice(0, 25)) parts.push(`  - ${e.file} → ${e.name}`);
     }
     if (d.unusedFiles.length) {
-      parts.push(`- Unused files${d.truncatedFiles ? ' (truncated — likely a misconfigured entry point)' : ''}:`);
+      parts.push(
+        `- Files with no static importer${d.truncatedFiles ? ' (truncated — likely a misconfigured entry point)' : ''} — verify before deleting:`,
+      );
       for (const f of d.unusedFiles) parts.push(`  - ${f}`);
+    }
+    if (d.possiblyUnusedFiles.length) {
+      parts.push(
+        '- Possibly-unused files — INVESTIGATE, do NOT delete: these match patterns commonly loaded via filesystem globs, string paths, or route conventions (public/ assets, *.md/*.mdx content, service workers, templates) that static analysis cannot see, so Knip flags them as unused even when they are live:',
+      );
+      for (const f of d.possiblyUnusedFiles) parts.push(`  - ${f}`);
     }
     parts.push(`- Confidence: ${d.confidence}`);
     parts.push('');

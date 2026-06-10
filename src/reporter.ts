@@ -69,14 +69,21 @@ export function renderTerminal(input: ReportInput): string {
   }
   if (audits.deadcode) {
     const d = audits.deadcode;
-    const total = d.unusedFiles.length + d.unusedDependencies.length + d.unusedExports.length;
+    const total =
+      d.unusedFiles.length +
+      d.possiblyUnusedFiles.length +
+      d.unusedDependencies.length +
+      d.unusedExports.length;
     if (total === 0) {
       out.push(`  ${chalk.green('✓')} Dead code    no dead code found`);
     } else {
+      const investigate = d.possiblyUnusedFiles.length
+        ? `, ${d.possiblyUnusedFiles.length} file(s) to investigate`
+        : '';
       out.push(
         `  ${chalk.green('✓')} Dead code    ${d.unusedDependencies.length} unused dep(s), ` +
           `${d.unusedFiles.length}${d.truncatedFiles ? '+' : ''} unused file(s), ` +
-          `${d.unusedExports.length} unused export(s)`,
+          `${d.unusedExports.length} non-imported export(s)${investigate}`,
       );
     }
   }

@@ -11,6 +11,11 @@ type IssueRecords = Record<string, Record<string, unknown>>;
  * builds the full option object — including the catalog container that `main`
  * requires — then `main` (from knip) runs the analysis. Neither is typed at
  * the package root, so we type the slices we use here.
+ *
+ * `createOptions({ cwd })` resolves the project's own Knip config
+ * (knip.json[c], .knip.json[c], knip.ts, or package.json#knip) from `cwd`,
+ * so any per-project entry/ignore tuning is automatically respected — we do
+ * not override it.
  */
 interface KnipIssues {
   files: Set<string>;
@@ -35,10 +40,30 @@ const IGNORE_FILE_PATTERNS = [
   /\.d\.ts$/,
 ];
 
+/**
+ * Files Knip can flag as "unused" but that are almost always loaded by means
+ * static analysis cannot see: filesystem globs (readdirSync), string-literal
+ * paths, route-convention discovery, or the browser/runtime fetching them
+ * directly. We never present these as deletable — they go in a separate
+ * `possiblyUnusedFiles` bucket labelled "investigate, NOT safe to delete".
+ */
+const DYNAMIC_LOAD_FILE_PATTERNS = [
+  /(^|\/)public\//, // served as static assets; referenced by URL strings (e.g. "/sw.js")
+  /\.mdx?$/, // markdown/MDX content, typically loaded via readdirSync globs + [slug] routes
+  /service-?worker/i, // service workers registered by string path, not imported
+  /(^|\/)sw\.[jt]s$/, // common service-worker filename
+  /templates?/i, // template files resolved by name/string at runtime
+];
+
 const MAX_FILES_BEFORE_SUMMARY = 20;
 
 function isIgnorableFile(path: string): boolean {
   return IGNORE_FILE_PATTERNS.some((re) => re.test(path));
+}
+
+/** True when a file is commonly loaded dynamically (glob/string/route/runtime). */
+export function isDynamicallyLoadedFile(path: string): boolean {
+  return DYNAMIC_LOAD_FILE_PATTERNS.some((re) => re.test(path));
 }
 
 /** Collect the symbol names across an IssueRecords map. */
@@ -86,8 +111,26 @@ export async function runDeadCodeScan(projectPath: string): Promise<DeadCodeResu
     .map((f) => relative(cwd, resolve(cwd, f)))
     .filter((f) => !isIgnorableFile(f));
 
-  const truncatedFiles = rawFiles.length > MAX_FILES_BEFORE_SUMMARY;
-  const unusedFiles = truncatedFiles ? rawFiles.slice(0, MAX_FILES_BEFORE_SUMMARY) : rawFiles;
+  // Separate files that static analysis genuinely shows as orphaned (safe-ish to
+  // delete after review) from files that are commonly loaded dynamically — globs,
+  // string paths, route conventions — which Knip CANNOT see and must never be
+  // presented as deletable.
+  const deletableFiles: string[] = [];
+  const possiblyUnused: string[] = [];
+  for (const f of rawFiles) {
+    (isDynamicallyLoadedFile(f) ? possiblyUnused : deletableFiles).push(f);
+  }
+
+  // Truncation is driven by the deletable list (the one we actually surface as
+  // "unused"); a flood there usually means a misconfigured entry point.
+  const truncatedFiles = deletableFiles.length > MAX_FILES_BEFORE_SUMMARY;
+  const unusedFiles = truncatedFiles
+    ? deletableFiles.slice(0, MAX_FILES_BEFORE_SUMMARY)
+    : deletableFiles;
+  const possiblyUnusedFiles =
+    possiblyUnused.length > MAX_FILES_BEFORE_SUMMARY
+      ? possiblyUnused.slice(0, MAX_FILES_BEFORE_SUMMARY)
+      : possiblyUnused;
 
   const unusedDependencies = flattenSymbols(issues.dependencies);
   const unusedDevDependencies = flattenSymbols(issues.devDependencies);
@@ -99,6 +142,7 @@ export async function runDeadCodeScan(projectPath: string): Promise<DeadCodeResu
 
   return {
     unusedFiles,
+    possiblyUnusedFiles,
     unusedDependencies,
     unusedDevDependencies,
     unusedExports,

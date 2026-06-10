@@ -1,5 +1,11 @@
 ## Next.js-specific fix knowledge
 
+> **Reference, not a checklist.** The items below are background knowledge about
+> how to fix common Next.js issues. They are NOT a list of problems in this
+> project. Only act on a point here if it directly addresses one of the failing
+> audits in the findings above, and only after confirming the project doesn't
+> already do it.
+
 - **LCP image**: use `next/image` with `priority` (App Router) — this sets
   `fetchpriority="high"` and preloads. For a plain `<img>`, add
   `fetchpriority="high"` and `loading="eager"`.

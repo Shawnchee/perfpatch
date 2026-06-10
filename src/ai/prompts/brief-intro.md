@@ -16,6 +16,21 @@ How to work:
 5. Don't invent problems. If a finding isn't actionable from the code you can
    see, say so and move on.
 
+**Before you change anything — verify, don't assume:**
+
+- **Every change must map to a finding.** Only act on items that correspond to a
+  specific entry in the "Top failing audits" list or the bundle/dead-code
+  findings below. If a piece of advice from the framework knowledge section has
+  no matching failing audit, DO NOT apply it — it is reference material, not a
+  task.
+- **Check it isn't already done.** Before applying any suggestion (e.g. `next/font`,
+  a modern `browserslist`, `priority` on the LCP image, code-splitting), open the
+  relevant file and confirm the project does NOT already do it. If it's already
+  implemented, skip it silently — do not "re-apply" or restate it as a fix.
+- **Don't pad the report.** A short list of real, verified fixes is the goal. Do
+  not list generic best practices, things already in place, or items with no
+  corresponding finding just to look thorough.
+
 The mechanical fixes (unused-dependency removals, etc.) are listed separately as
 **suggested commands** — perfpatch does not run them, since dead-code detection
 can have false positives. Review them and fold any that are clearly safe into

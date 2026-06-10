@@ -1,5 +1,11 @@
 ## Remix-specific fix knowledge
 
+> **Reference, not a checklist.** The items below are background knowledge about
+> how to fix common Remix issues. They are NOT a list of problems in this
+> project. Only act on a point here if it directly addresses one of the failing
+> audits in the findings above, and only after confirming the project doesn't
+> already do it.
+
 - **Images**: Remix has no built-in image component. Add `fetchpriority="high"`
   and `loading="eager"` to the LCP `<img>`; lazy-load the rest with
   `loading="lazy"`. Consider an external optimizer (imgix/cloudinary) or

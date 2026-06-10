@@ -1,5 +1,11 @@
 ## Generic frontend fix knowledge
 
+> **Reference, not a checklist.** The items below are background knowledge about
+> how to fix common frontend issues. They are NOT a list of problems in this
+> project. Only act on a point here if it directly addresses one of the failing
+> audits in the findings above, and only after confirming the project doesn't
+> already do it.
+
 No specific framework detected — prefer standards-based, framework-agnostic fixes.
 
 - **Images**: add `fetchpriority="high"` + `loading="eager"` to the single LCP
