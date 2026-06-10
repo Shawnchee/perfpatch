@@ -113,27 +113,41 @@ dev server is running:
 ## Example output
 
 ```
-perfpatch v0.1.0
+perfpatch v0.2.0
 
 🔍 Auditing https://yoursite.com
+📁 Project  /path/to/your-project
    Stack: nextjs 14.2.0, tailwind, TypeScript
 
   ✓ Lighthouse    61 perf   96 a11y  100 seo   92 bp
-  ✓ Bundle        196KB JS, 3 heavy dep(s), 0 duplicate(s)
-  ✓ Dead code     11 unused dep(s), 0 unused file(s), 4 unused export(s)
+  ✓ Bundle       196KB JS (built), 3 heavy dep(s), 0 duplicate(s)
+  ✓ Dead code    2 unused dep(s), 1 unused file(s), 4 non-imported export(s)
+
+  Top Lighthouse issues
+  • Reduce unused JavaScript  (Potential savings of 117 KiB — est. savings ~450ms / ~117KB)
+  • Serve images in next-gen formats  (est. savings ~310ms / ~85KB)
+  • Eliminate render-blocking resources  (est. savings ~200ms)
+  • LCP element: <img class="hero-banner" src="/hero.png">
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🔴 HIGH IMPACT  (fix these first)
+⚪ LOW IMPACT
 
-[1] Add fetchpriority to hero image                ~800ms LCP
-    File: src/app/page.tsx
-    Effort: LOW — set fetchpriority="high" on the LCP image.
+[1] Remove 2 unused dependencies                    removes unused install weight
+    Suggested command (review, then run yourself): npm uninstall moment lodash
+    Effort: LOW — These packages are installed but never imported: moment, lodash.
 
-[2] Replace moment with dayjs                       ~230KB bundle
-    Suggested command (review, then run yourself): npm uninstall moment && npm install dayjs
-    Effort: LOW — moment is large and not tree-shakeable.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Suggested commands are advisory — review, then run them yourself.
+
+💡 Contextual code fixes written to perfpatch-fixes.md — open it in
+   Claude Code / Cursor and let your IDE agent apply them.
 ```
+
+The savings figures are **Lighthouse's own estimates from the run** — perfpatch
+prioritizes issues by measured impact × fixability, it doesn't invent numbers.
+The contextual fixes (LCP image attributes, dependency swaps, config changes)
+land in the fix brief for your IDE agent.
 
 ---
 
@@ -167,7 +181,7 @@ Add to your MCP client config (Claude Desktop / Cursor / Claude Code) — no key
   "mcpServers": {
     "perfpatch": {
       "command": "npx",
-      "args": ["-y", "perfpatch-mcp"]
+      "args": ["-y", "perfpatch", "--mcp"]
     }
   }
 }
@@ -176,8 +190,12 @@ Add to your MCP client config (Claude Desktop / Cursor / Claude Code) — no key
 In Claude Code you can add it in one line:
 
 ```bash
-claude mcp add perfpatch -- npx -y perfpatch-mcp
+claude mcp add perfpatch -- npx -y perfpatch --mcp
 ```
+
+(If you have perfpatch installed globally, `perfpatch-mcp` is also available as
+a direct command — but with `npx`, always go through the `perfpatch` package as
+shown above.)
 
 <details>
 <summary>Run the MCP server from source instead</summary>

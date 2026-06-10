@@ -61,10 +61,19 @@ function renderFindings(audits: AuditResults): string {
       `- Scores: perf ${lh.scores.performance}, a11y ${lh.scores.accessibility}, seo ${lh.scores.seo}, best-practices ${lh.scores.bestPractices}`,
       `- Metrics: LCP ${Math.round(lh.metrics.lcp)}ms, FCP ${Math.round(lh.metrics.fcp)}ms, TBT ${Math.round(lh.metrics.tbt)}ms, CLS ${lh.metrics.cls.toFixed(3)}`,
       '',
-      'Top failing audits (by impact × fixability):',
+      "Top failing audits, prioritized by the report's measured impact × fixability",
+      "(savings figures are Lighthouse's own estimates from this run):",
     );
     for (const a of topIssues(lh.failingAudits, 8)) {
-      parts.push(`- **${a.title}** (${a.id}) — score ${(a.score * 100).toFixed(0)}${a.displayValue ? `, ${a.displayValue}` : ''}`);
+      // Don't repeat byte savings displayValue already states ("Est savings of N KiB").
+      const dvHasSavings = a.displayValue != null && /savings/i.test(a.displayValue);
+      const savings: string[] = [];
+      if (a.savingsMs) savings.push(`est. ~${a.savingsMs}ms`);
+      if (a.savingsBytes && !dvHasSavings) savings.push(`~${Math.round(a.savingsBytes / 1024)}KB`);
+      parts.push(
+        `- **${a.title}** (${a.id}) — score ${(a.score * 100).toFixed(0)}` +
+          `${a.displayValue ? `, ${a.displayValue}` : ''}${savings.length ? `, ${savings.join(' / ')}` : ''}`,
+      );
     }
 
     if (lh.lcpElement) {

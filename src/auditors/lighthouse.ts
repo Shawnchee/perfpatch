@@ -60,6 +60,11 @@ function numericValue(lhr: LhrLike, auditId: string): number {
   return lhr.audits?.[auditId]?.numericValue ?? 0;
 }
 
+/** Numeric audit value, or null when the audit itself is absent. */
+function numericValueOrNull(lhr: LhrLike, auditId: string): number | null {
+  return lhr.audits?.[auditId]?.numericValue ?? null;
+}
+
 function score100(lhr: LhrLike, category: string): number {
   const raw = lhr.categories?.[category]?.score;
   return raw == null ? 0 : Math.round(raw * 100);
@@ -180,6 +185,9 @@ interface LhrDetailItem {
 interface LhrDetails {
   type?: string;
   items?: LhrDetailItem[];
+  /** Estimated savings on opportunity audits (Lighthouse's own estimate). */
+  overallSavingsMs?: number;
+  overallSavingsBytes?: number;
 }
 
 interface LhrAudit {
@@ -190,6 +198,8 @@ interface LhrAudit {
   scoreDisplayMode?: string;
   displayValue?: string;
   numericValue?: number;
+  /** Per-metric estimated savings in ms, e.g. { LCP: 450, FCP: 150 }. */
+  metricSavings?: Record<string, number>;
   details?: LhrDetails;
 }
 
@@ -217,12 +227,26 @@ async function preflight(url: string): Promise<void> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { signal: controller.signal, redirect: 'follow' });
+    const res = await fetch(url, {
+      signal: controller.signal,
+      redirect: 'follow',
+      // Bot-protection layers (Cloudflare etc.) often 403 a bare fetch while
+      // letting a real browser through — identify as one so the preflight
+      // doesn't reject sites Lighthouse's Chrome could audit fine.
+      headers: {
+        'user-agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      },
+    });
     if (res.status === 403 || res.status === 401) {
-      throw new PerfpatchError(
-        `${url} returned ${res.status} (authenticated/forbidden).`,
-        "perfpatch can't audit authenticated pages in v1. Try --local for codebase analysis.",
+      // Don't hard-fail: this is frequently bot protection, and headless Chrome
+      // may still load the page. Truly blocked pages are caught after the run
+      // via lhr.runtimeError. Warn on stderr so JSON stdout stays clean.
+      console.error(
+        `⚠ ${url} returned ${res.status} to a preflight request — continuing. ` +
+          'If the page actually requires login, the scores below describe the error/login page, not your app.',
       );
+      return;
     }
     if (res.status >= 400) {
       throw new PerfpatchError(
@@ -319,7 +343,66 @@ export async function runLighthouse(
   }
 }
 
-function shapeResult(
+/**
+ * Audits that ARE the core metrics — already surfaced via `metrics`/scores, so
+ * listing them again as "failing audits to fix" would be redundant noise.
+ */
+const METRIC_AUDIT_IDS = new Set([
+  'largest-contentful-paint',
+  'first-contentful-paint',
+  'cumulative-layout-shift',
+  'total-blocking-time',
+  'speed-index',
+  'interactive',
+  'interaction-to-next-paint',
+  'max-potential-fid',
+  'first-meaningful-paint',
+]);
+
+/**
+ * Lighthouse 12.6+ runs new "insight" audits ALONGSIDE the classic audits they
+ * are replacing, so the same problem appears twice in the report. When an
+ * insight and one of its classic twins both fail, keep the classic one (it
+ * carries overallSavings data and our fixability scores) and drop the insight.
+ */
+const INSIGHT_TWINS: Record<string, string[]> = {
+  'cache-insight': ['uses-long-cache-ttl'],
+  'cls-culprits-insight': ['layout-shifts', 'non-composited-animations', 'unsized-images'],
+  'document-latency-insight': ['server-response-time', 'redirects', 'uses-text-compression'],
+  'dom-size-insight': ['dom-size'],
+  'duplicated-javascript-insight': ['duplicated-javascript'],
+  'font-display-insight': ['font-display'],
+  'image-delivery-insight': [
+    'uses-optimized-images',
+    'modern-image-formats',
+    'uses-responsive-images',
+    'efficient-animated-content',
+  ],
+  'lcp-discovery-insight': ['prioritize-lcp-image', 'lcp-lazy-loaded'],
+  'legacy-javascript-insight': ['legacy-javascript'],
+  'modern-http-insight': ['uses-http2'],
+  'network-dependency-tree-insight': ['critical-request-chains'],
+  'render-blocking-insight': ['render-blocking-resources'],
+  'third-parties-insight': ['third-party-summary'],
+  'viewport-insight': ['viewport'],
+};
+
+/**
+ * Lighthouse's own estimated savings for an audit (NOT a guess of ours):
+ * overallSavingsMs/Bytes on classic opportunities, or the largest per-metric
+ * saving on newer audits that only carry `metricSavings`.
+ */
+function extractSavings(audit: LhrAudit): { savingsMs?: number; savingsBytes?: number } {
+  const metricMax = Math.max(0, ...Object.values(audit.metricSavings ?? {}));
+  const ms = Math.round(audit.details?.overallSavingsMs ?? metricMax);
+  const bytes = Math.round(audit.details?.overallSavingsBytes ?? 0);
+  return {
+    ...(ms > 0 ? { savingsMs: ms } : {}),
+    ...(bytes > 0 ? { savingsBytes: bytes } : {}),
+  };
+}
+
+export function shapeResult(
   url: string,
   device: 'desktop' | 'mobile',
   lhr: LhrLike,
@@ -327,18 +410,24 @@ function shapeResult(
   const metrics: LighthouseMetrics = {
     lcp: numericValue(lhr, 'largest-contentful-paint'),
     cls: numericValue(lhr, 'cumulative-layout-shift'),
-    inp: numericValue(lhr, 'interaction-to-next-paint'),
+    // Lab Lighthouse cannot measure INP (it needs real user interaction) —
+    // report null rather than a misleading 0.
+    inp: numericValueOrNull(lhr, 'interaction-to-next-paint'),
     fcp: numericValue(lhr, 'first-contentful-paint'),
     tbt: numericValue(lhr, 'total-blocking-time'),
-    tti: numericValue(lhr, 'interactive'),
+    tti: numericValueOrNull(lhr, 'interactive'),
   };
 
-  // Build weight lookup from the performance category auditRefs.
-  const perfRefs = lhr.categories?.['performance']?.auditRefs ?? [];
+  // Weight lookup across ALL categories (a11y/seo/bp weight their audits too;
+  // perf opportunities are weight 0 — their impact comes from savings instead).
   const weights = new Map<string, number>();
-  for (const ref of perfRefs) weights.set(ref.id, ref.weight);
+  for (const cat of Object.values(lhr.categories ?? {})) {
+    for (const ref of cat.auditRefs ?? []) {
+      weights.set(ref.id, Math.max(weights.get(ref.id) ?? 0, ref.weight));
+    }
+  }
 
-  const failingAudits: FailingAudit[] = [];
+  const failing = new Map<string, FailingAudit>();
   for (const [id, audit] of Object.entries(lhr.audits ?? {})) {
     const score = audit.score;
     // Only opportunities/diagnostics with a numeric score < 0.9 (PRD §8).
@@ -346,15 +435,26 @@ function shapeResult(
       continue;
     }
     if (score >= 0.9) continue;
-    failingAudits.push({
+    // The metric audits duplicate `metrics`/scores — skip them here.
+    if (METRIC_AUDIT_IDS.has(id)) continue;
+    failing.set(id, {
       id,
       title: audit.title ?? id,
       description: audit.description ?? '',
       score,
       displayValue: audit.displayValue,
       weight: weights.get(id) ?? 0,
+      ...extractSavings(audit),
     });
   }
+
+  // Dedupe insight/classic twins (both fail for the same underlying problem).
+  for (const [insightId, twins] of Object.entries(INSIGHT_TWINS)) {
+    if (failing.has(insightId) && twins.some((t) => failing.has(t))) {
+      failing.delete(insightId);
+    }
+  }
+  const failingAudits = [...failing.values()];
 
   return {
     url,

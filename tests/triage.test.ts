@@ -36,11 +36,35 @@ describe('triage', () => {
     expect(sorted[0]!.priority).toBeGreaterThan(sorted[1]!.priority!);
   });
 
-  it('computes impact as weight × (1 - score)', () => {
-    const [scored] = triage([audit('unused-javascript', 0.5, 0.4)]);
-    expect(scored!.impact).toBeCloseTo(0.2, 5);
+  it('gives weight-0 opportunities a non-zero priority (real LHR shape)', () => {
+    // In real Lighthouse reports every opportunity has weight 0 — priority
+    // must still differentiate them, not collapse to 0 × fixability = 0.
+    const [scored] = triage([audit('unused-javascript', 0.5, 0)]);
+    expect(scored!.priority).toBeGreaterThan(0);
     expect(scored!.fixability).toBe(8);
-    expect(scored!.priority).toBeCloseTo(1.6, 5);
+  });
+
+  it("ranks audits with measured savings above equal audits without (Lighthouse's own estimates)", () => {
+    const noSavings = audit('unused-css-rules', 0.5, 0);
+    const withSavings = { ...audit('unused-javascript', 0.5, 0), savingsMs: 1200, savingsBytes: 150_000 };
+    const sorted = triage([noSavings, withSavings]);
+    expect(sorted[0]!.id).toBe('unused-javascript');
+    expect(sorted[0]!.priority).toBeGreaterThan(sorted[1]!.priority! * 2);
+  });
+
+  it('uses category weight for a11y/seo audits', () => {
+    const heavy = audit('image-alt', 0, 10);
+    const light = audit('image-alt', 0, 0);
+    const [h] = triage([heavy]);
+    const [l] = triage([light]);
+    expect(h!.impact).toBeGreaterThan(l!.impact!);
+  });
+
+  it('breaks ties deterministically (savings, then id)', () => {
+    const a = audit('some-unknown-audit-b', 0.5, 0);
+    const b = audit('some-unknown-audit-a', 0.5, 0);
+    const sorted = triage([a, b]);
+    expect(sorted.map((s) => s.id)).toEqual(['some-unknown-audit-a', 'some-unknown-audit-b']);
   });
 });
 

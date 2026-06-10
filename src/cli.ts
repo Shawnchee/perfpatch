@@ -162,14 +162,19 @@ function checkBudget(opts: CliOptions, audits: AuditResults): void {
     accessibility: scores.accessibility,
     seo: scores.seo,
     bp: scores.bestPractices,
+    bestpractices: scores.bestPractices,
   };
-  const actual = map[metric];
+  const actual = map[metric.toLowerCase()];
   if (actual == null) {
-    console.error(chalk.yellow(`Unknown budget metric "${metric}" — skipping check.`));
-    return;
+    // A typo'd metric must not silently pass a CI gate.
+    fail(
+      `Unknown budget metric "${metric}".`,
+      'Use one of: perf, a11y, seo, bp (e.g. --budget perf=90).',
+    );
   }
   if (actual < threshold) fail(`Budget failed: ${metric} ${actual} < ${threshold}`);
-  console.log(chalk.green(`✓ Budget passed: ${metric} ${actual} >= ${threshold}`));
+  // stderr, so --output json stdout stays pipeable to jq.
+  console.error(chalk.green(`✓ Budget passed: ${metric} ${actual} >= ${threshold}`));
 }
 
 /**
@@ -258,6 +263,23 @@ async function main(): Promise<void> {
       'Provide a URL and/or --local <path>.',
       'Examples:\n  perfpatch https://yoursite.com\n  perfpatch --local ./',
     );
+  }
+
+  const VALID_STACKS: Framework[] = ['nextjs', 'astro', 'remix', 'vite', 'create-react-app', 'nuxt', 'generic'];
+  if (opts.stack && !VALID_STACKS.includes(opts.stack)) {
+    fail(`Invalid --stack "${opts.stack}".`, `Use one of: ${VALID_STACKS.join(', ')}`);
+  }
+
+  const VALID_CATEGORIES: Category[] = ['perf', 'bundle', 'deadcode', 'all'];
+  if (!VALID_CATEGORIES.includes(opts.category)) {
+    fail(`Invalid --category "${opts.category}".`, `Use one of: ${VALID_CATEGORIES.join(', ')}`);
+  }
+  // Guard combinations that would silently run nothing.
+  if ((opts.category === 'bundle' || opts.category === 'deadcode') && !opts.local) {
+    fail(`--category ${opts.category} needs --local <path> (it analyzes the codebase, not a URL).`);
+  }
+  if (opts.category === 'perf' && !opts.url) {
+    fail('--category perf needs a URL to audit with Lighthouse.');
   }
 
   const isTerminal = opts.output === 'terminal';

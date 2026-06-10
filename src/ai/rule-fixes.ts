@@ -40,9 +40,10 @@ export function generateRuleFixes(audits: AuditResults, stack: StackInfo): Fix[]
       : '';
 
     if (dc.unusedDependencies.length > 0) {
+      const n = dc.unusedDependencies.length;
       fixes.push({
         id: 'remove-unused-deps',
-        title: `Remove ${dc.unusedDependencies.length} unused dependencies`,
+        title: `Remove ${n} unused ${n === 1 ? 'dependency' : 'dependencies'}`,
         category: 'deadcode',
         impact: dc.unusedDependencies.length >= 5 ? 'medium' : 'low',
         effort: 'low',
@@ -55,9 +56,10 @@ export function generateRuleFixes(audits: AuditResults, stack: StackInfo): Fix[]
       });
     }
     if (dc.unusedDevDependencies.length > 0) {
+      const n = dc.unusedDevDependencies.length;
       fixes.push({
         id: 'remove-unused-dev-deps',
-        title: `Remove ${dc.unusedDevDependencies.length} unused devDependencies`,
+        title: `Remove ${n} unused ${n === 1 ? 'devDependency' : 'devDependencies'}`,
         category: 'deadcode',
         impact: 'low',
         effort: 'low',

@@ -4,7 +4,66 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.2]
+## [0.2.0]
+
+Triage is now grounded in the Lighthouse report's own measurements, and the
+documented MCP setup actually works. (Folds in the unreleased 0.1.2 changes below.)
+
+### Fixed
+- **MCP setup instructions were broken for everyone.** The README told users to run
+  `npx -y perfpatch-mcp`, but no npm package by that name exists — the MCP server is a
+  *bin* inside the `perfpatch` package. The working config is
+  `npx -y perfpatch --mcp` (both the JSON config and the `claude mcp add` one-liner
+  are corrected).
+- **Issue prioritization was effectively random for actionable audits.** In real
+  Lighthouse reports, every opportunity/diagnostic has scoring weight 0, so the old
+  `impact = weight × (1 − score)` formula gave `priority = 0` to *all* of them — the
+  "top failing audits" order was arbitrary. Priority is now grounded in the report's
+  own data: score gap + category weight (a11y/SEO/BP audits use their real category
+  weights) + Lighthouse's own estimated savings (`metricSavings` /
+  `overallSavingsMs` / `overallSavingsBytes`), × fixability. Ties break
+  deterministically.
+- **INP is no longer reported as `0`.** Lab Lighthouse cannot measure INP (it needs
+  real user input); it is now `null` in JSON output, omitted from reports, removed
+  from the MCP `verify_fix` metric choices, and `verify_fix` errors clearly instead
+  of "verifying" against a fabricated 0. TTI is likewise `null` if a future
+  Lighthouse drops the audit.
+- **Duplicate findings from Lighthouse 12.6+ "insight" audits.** Lighthouse now runs
+  new insight audits alongside the classic audits they replace, so the same problem
+  appeared twice (e.g. `render-blocking-resources` + `render-blocking-insight`).
+  When both twins fail, only the classic audit is reported.
+- **A typo'd `--budget` metric silently passed CI.** Unknown metrics (e.g.
+  `--budget pref=90`) now fail loudly instead of warning and exiting 0.
+- **`--output json` stdout is now clean.** The budget pass message moved to stderr,
+  so `perfpatch <url> --output json --budget perf=90 | jq` works.
+- **Bot-protected sites no longer fail preflight.** The reachability check now sends
+  a browser User-Agent, and 401/403 responses warn-and-continue (Cloudflare-style
+  protection often blocks plain fetches while letting headless Chrome through);
+  truly blocked pages are still caught via Lighthouse's runtime error.
+- `--stack` and `--category` values are validated, and category/target combinations
+  that would silently run nothing (e.g. `--category bundle` without `--local`) now
+  error with an explanation.
+- Patched a low-severity DoS advisory by upgrading `diff` 7 → 9 (perfpatch runs
+  `applyPatch` on LLM-authored patches, where that advisory is actually relevant).
+
+### Added
+- **Top Lighthouse issues in the terminal and markdown reports** — previously the
+  failing audits only landed in the fix brief; the report itself showed bare scores.
+  Each issue line includes Lighthouse's estimated savings (`est. savings ~450ms /
+  ~117KB`) — measured estimates from the run, not guesses.
+- The fix brief now includes per-audit estimated savings so the IDE agent can
+  prioritize by measured impact.
+- The markdown report now includes metrics, top issues, the LCP element, heavy/
+  duplicate dependencies, and the full dead-code section (it previously omitted
+  dead code entirely).
+- A clear error message if knip's programmatic API shape changes (instead of a
+  cryptic `TypeError`).
+
+### Removed
+- Unused `execa` dependency and dead `run-command.ts` module (found by running
+  perfpatch on itself).
+
+## [0.1.2] (unreleased — folded into 0.2.0)
 
 Accuracy fixes — findings on real sites were noisy or misleading. Verified against
 a live Next.js production site (desktop perf corrected 69 → 99, matching Chrome
@@ -70,6 +129,6 @@ Initial public release.
 - Output formats: `terminal`, `json` (machine-readable, without the multi-hundred-KB
   raw Lighthouse report), and `markdown`.
 
-[0.1.2]: https://github.com/Shawnchee/perfpatch/releases/tag/v0.1.2
+[0.2.0]: https://github.com/Shawnchee/perfpatch/releases/tag/v0.2.0
 [0.1.1]: https://github.com/Shawnchee/perfpatch/releases/tag/v0.1.1
 [0.1.0]: https://github.com/Shawnchee/perfpatch/releases/tag/v0.1.0

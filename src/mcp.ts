@@ -175,10 +175,11 @@ server.registerTool(
 server.registerTool(
   'verify_fix',
   {
-    description: 'Re-run Lighthouse and compare a single metric to a baseline.',
+    description:
+      'Re-run Lighthouse and compare a single metric to a baseline. (INP is not offered: lab Lighthouse cannot measure it — use tbt as the interactivity proxy.)',
     inputSchema: {
       url: z.string().url(),
-      metric: z.enum(['performance', 'lcp', 'cls', 'inp', 'fcp', 'tbt', 'tti']),
+      metric: z.enum(['performance', 'lcp', 'cls', 'fcp', 'tbt', 'tti']),
       baseline: z.number(),
       device: z.enum(['desktop', 'mobile']).optional(),
     },

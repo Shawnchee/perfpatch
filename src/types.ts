@@ -62,8 +62,12 @@ export interface FailingAudit {
   description: string;
   score: number; // 0-1
   displayValue?: string;
-  /** Lighthouse weight in the performance category, if applicable. */
+  /** Lighthouse scoring weight in its category (perf opportunities are 0). */
   weight: number;
+  /** Lighthouse-estimated time saving in ms (from the report, not a guess). */
+  savingsMs?: number;
+  /** Lighthouse-estimated transfer saving in bytes (from the report). */
+  savingsBytes?: number;
   /** Computed triage fields (filled by triage.ts). */
   impact?: number;
   fixability?: number;
@@ -73,10 +77,12 @@ export interface FailingAudit {
 export interface LighthouseMetrics {
   lcp: number; // ms
   cls: number; // unitless
-  inp: number; // ms
+  /** null — lab Lighthouse cannot measure INP (it needs real user input). */
+  inp: number | null;
   fcp: number; // ms
   tbt: number; // ms
-  tti: number; // ms
+  /** ms, or null if the audit is absent in this Lighthouse version. */
+  tti: number | null;
 }
 
 export interface ContrastIssue {

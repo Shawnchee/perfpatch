@@ -1,7 +1,9 @@
 import chalk from 'chalk';
 import { VERSION } from './config.js';
+import { topIssues } from './triage.js';
 import type {
   AuditResults,
+  FailingAudit,
   Fix,
   Impact,
   OutputFormat,
@@ -16,6 +18,19 @@ function kb(bytes: number): string {
 
 function ms(value: number): string {
   return value >= 1000 ? `${(value / 1000).toFixed(1)}s` : `${Math.round(value)}ms`;
+}
+
+/**
+ * "est. savings ~1.2s / ~85KB" from Lighthouse's own estimates, or ''.
+ * Skips the byte figure when displayValue already states it ("Est savings of
+ * 1,540 KiB") so the line doesn't say the same thing twice.
+ */
+function savingsLabel(a: FailingAudit): string {
+  const dvHasSavings = a.displayValue != null && /savings/i.test(a.displayValue);
+  const parts: string[] = [];
+  if (a.savingsMs) parts.push(`~${ms(a.savingsMs)}`);
+  if (a.savingsBytes && !dvHasSavings) parts.push(`~${kb(a.savingsBytes)}`);
+  return parts.length ? `est. savings ${parts.join(' / ')}` : '';
 }
 
 export interface ReportInput {
@@ -87,6 +102,20 @@ export function renderTerminal(input: ReportInput): string {
       );
     }
   }
+  // Top Lighthouse issues, prioritized by the report's own data (score gap,
+  // category weight, estimated savings) × fixability.
+  if (audits.lighthouse && audits.lighthouse.failingAudits.length > 0) {
+    const lh = audits.lighthouse;
+    out.push('');
+    out.push(chalk.bold('  Top Lighthouse issues'));
+    for (const a of topIssues(lh.failingAudits, 6)) {
+      const extras = [a.displayValue, savingsLabel(a)].filter(Boolean).join(' — ');
+      out.push(`  • ${a.title}${extras ? chalk.dim(`  (${extras})`) : ''}`);
+    }
+    if (lh.lcpElement) {
+      out.push(`  • ${chalk.dim('LCP element:')} ${lh.lcpElement.slice(0, 100)}`);
+    }
+  }
   out.push('');
   out.push(RULE);
 
@@ -153,7 +182,8 @@ function renderRawAudits(audits: AuditResults): string {
     const m = audits.lighthouse.metrics;
     lines.push(
       chalk.dim(
-        `  LCP ${ms(m.lcp)}  FCP ${ms(m.fcp)}  TBT ${ms(m.tbt)}  CLS ${m.cls.toFixed(3)}  TTI ${ms(m.tti)}`,
+        `  LCP ${ms(m.lcp)}  FCP ${ms(m.fcp)}  TBT ${ms(m.tbt)}  CLS ${m.cls.toFixed(3)}` +
+          (m.tti != null ? `  TTI ${ms(m.tti)}` : ''),
       ),
     );
     lines.push(chalk.dim('Top failing audits:'));
@@ -203,19 +233,81 @@ export function renderMarkdown(input: ReportInput): string {
   md.push('');
 
   if (audits.lighthouse) {
-    const s = audits.lighthouse.scores;
+    const lh = audits.lighthouse;
+    const s = lh.scores;
     md.push('## Lighthouse');
     md.push('');
     md.push('| Performance | Accessibility | SEO | Best Practices |');
     md.push('|---|---|---|---|');
     md.push(`| ${s.performance} | ${s.accessibility} | ${s.seo} | ${s.bestPractices} |`);
     md.push('');
+    const m = lh.metrics;
+    md.push(
+      `**Metrics:** LCP ${ms(m.lcp)} · FCP ${ms(m.fcp)} · TBT ${ms(m.tbt)} · CLS ${m.cls.toFixed(3)}` +
+        (m.tti != null ? ` · TTI ${ms(m.tti)}` : ''),
+    );
+    md.push('');
+    if (lh.failingAudits.length > 0) {
+      md.push('### Top issues (prioritized by measured impact × fixability)');
+      md.push('');
+      for (const a of topIssues(lh.failingAudits, 8)) {
+        const extras = [a.displayValue, savingsLabel(a)].filter(Boolean).join(' — ');
+        md.push(`- **${a.title}** (\`${a.id}\`)${extras ? ` — ${extras}` : ''}`);
+      }
+      md.push('');
+    }
+    if (lh.lcpElement) {
+      md.push(`**LCP element:** \`${lh.lcpElement}\``);
+      md.push('');
+    }
   }
   if (audits.bundle) {
+    const b = audits.bundle;
+    const measured = b.source === 'next-manifest' || b.source === 'dist-scan';
     md.push('## Bundle');
     md.push('');
-    md.push(`- Total JS: ${kb(audits.bundle.totalEstimatedSize)}`);
-    for (const r of audits.bundle.recommendations) md.push(`- ${r}`);
+    md.push(
+      measured
+        ? `- Built JS: ${kb(b.totalEstimatedSize)} (measured from ${b.source})`
+        : `- Worst-case dependency size: ~${kb(b.totalEstimatedSize)} (estimated — no build output found)`,
+    );
+    for (const d of b.heavyDeps) md.push(`- Heavy: ${d.name} (~${kb(d.estimatedSize)})`);
+    for (const d of b.duplicateDeps) md.push(`- Duplicate versions: ${d.name} (${d.versions.join(', ')})`);
+    for (const r of b.recommendations) md.push(`- ${r}`);
+    md.push('');
+  }
+  if (audits.deadcode) {
+    const d = audits.deadcode;
+    md.push('## Dead code');
+    md.push('');
+    if (d.unlisted.length) {
+      md.push(`- ⚠ Unlisted dependencies (imported but not in package.json): ${d.unlisted.join(', ')}`);
+    }
+    if (d.unusedDependencies.length) md.push(`- Unused dependencies: ${d.unusedDependencies.join(', ')}`);
+    if (d.unusedDevDependencies.length) {
+      md.push(`- Unused devDependencies: ${d.unusedDevDependencies.join(', ')}`);
+    }
+    if (d.unusedFiles.length) {
+      md.push(`- Files with no static importer (verify before deleting)${d.truncatedFiles ? ' — truncated' : ''}:`);
+      for (const f of d.unusedFiles) md.push(`  - \`${f}\``);
+    }
+    if (d.possiblyUnusedFiles.length) {
+      md.push('- Possibly-unused files (commonly loaded dynamically — investigate, do NOT delete):');
+      for (const f of d.possiblyUnusedFiles) md.push(`  - \`${f}\``);
+    }
+    if (d.unusedExports.length) {
+      md.push(`- Exports not imported elsewhere (may still be used locally/dynamically): ${d.unusedExports.length}`);
+    }
+    if (
+      !d.unlisted.length &&
+      !d.unusedDependencies.length &&
+      !d.unusedDevDependencies.length &&
+      !d.unusedFiles.length &&
+      !d.possiblyUnusedFiles.length &&
+      !d.unusedExports.length
+    ) {
+      md.push('- No dead code found.');
+    }
     md.push('');
   }
 

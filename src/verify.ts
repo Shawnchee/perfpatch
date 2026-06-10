@@ -1,4 +1,4 @@
-import { runLighthouse } from './auditors/lighthouse.js';
+import { PerfpatchError, runLighthouse } from './auditors/lighthouse.js';
 import type { LighthouseMetrics, MetricName, VerifyResult } from './types.js';
 
 /** Metrics where a lower value is better (timings, layout shift). */
@@ -28,6 +28,15 @@ export async function verifyFix(
     metric === 'performance'
       ? result.scores.performance
       : result.metrics[metric as keyof LighthouseMetrics];
+
+  if (current == null) {
+    throw new PerfpatchError(
+      `Metric "${metric}" is not available from a lab Lighthouse run, so it cannot be verified.`,
+      metric === 'inp'
+        ? 'INP requires real user interaction (field data). Use tbt as the lab proxy for interactivity.'
+        : 'This Lighthouse version does not report that audit.',
+    );
+  }
 
   const delta = current - baseline;
   const improved = LOWER_IS_BETTER.has(metric) ? delta < 0 : delta > 0;

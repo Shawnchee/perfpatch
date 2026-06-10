@@ -95,6 +95,13 @@ function flattenExports(records: IssueRecords | undefined, cwd: string): UnusedE
  * the structured output, filtering common false positives (PRD §8).
  */
 export async function runDeadCodeScan(projectPath: string): Promise<DeadCodeResult> {
+  // Knip's programmatic API is untyped at the root and has shifted between
+  // majors — fail with a clear message rather than a cryptic TypeError.
+  if (typeof createOptions !== 'function' || typeof knipMain !== 'function') {
+    throw new Error(
+      'Incompatible knip version: the programmatic API (knip/session createOptions + main) was not found. Reinstall dependencies, or pin knip to the 5.x range perfpatch is tested against.',
+    );
+  }
   const cwd = projectPath;
   const options = await createOptions({
     cwd,
